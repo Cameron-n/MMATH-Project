@@ -20,6 +20,7 @@ Created on Thu Jan  7 11:49:32 2021
 # 5-Plot a heatmap for the last average gradients minus the first for
 # each layer.
 # 6-Calculate accuracy and f1-scores
+# 7?-Confusion matrix viewer (In progress)
 #
 # Could improve to automate some parts
 #
@@ -46,69 +47,6 @@ while True:
     else:
         print("?")
         print("")
-
-# Notes
-        
-# --data analysis--
-        
-# 1 - Confusion Matrix                                              -/
-# All models have dog and cat most misclassed
-# Then bird or deer
-        
-# 2 - 'Where' in image weights change most                          -/
-# Last - first weights heatmap    
-
-# 3 - Scattor plot dataset vs dataset                              easy,high=9(R)
-        
-# 4 - classification norm's                                         ongoing
-        
-# 5 - Other accuracy measures (f1-score etc)                        medi,mid=4
-
-# ----------------
-        
-# --Training--
-
-# 6 - Non-fine-tuning                                               -/
-# x-axis nonfine epochs, y-axis accuracy
-# 3/4 best at 1, std. for same total time
-        
-# 6(2) - nonfinetuning same finetuning (3D nonfine,fine,accuracy)   -/ (for [],[],[],[5])
-        
-# 7 - Train from scratch                                            medi,high=6 model low accuracy???
-        
-# 8 - % of data to use                                              medi,mid=4
-        
-# -----------
-        
-# 9 - cifar-100                                                     easy,low=3
-
-# 10 - MNIST                                                        -/
-# Similar gradient structure
-        
-# 11- List of things that didn't work/problems                      ongoing
-# i.e cifar to imagenet, batchnorm freezing, 
-
-### INFORMATION FOR USING THIS SCRIPT ###
-# In progress
-# Could add may to automatically detect fine and nonfine numbers
-        
-#CIFAR-10-------------------------------------------------#
-# 0 - resnet50 - 18 , 41
-# 1 - vgg
-# 2 - vgg
-# 3 - densenet121 - 36
-# 4 - densenet169 - 37
-# 5 - mobilenet_v2 - 19 (20,20) , 39 , 79 (1,50)
-#---------------------------------------------------------#
-
-#MNIST----------------------------------------------------#
-# 0 - resnet50 - 117 (1,5)
-# 1 - vgg
-# 2 - vgg
-# 3 - densenet121
-# 4 - densenet169
-# 5 - mobilenet_v2             
-#---------------------------------------------------------#
         
 available_model = [
         ['ResNet50'],
@@ -131,7 +69,7 @@ while True:
         print("?")
         print("")
 
-filepath_front = r"C:\Users\Cameron\MMath Project\Models"
+filepath_front = r"C:\Users\Cameron\MMath Project\Models" ## !! Replace with appropriate folder name
 filepath_middle = f"\\{filepath_dataset}\{filepath_model.lower()}\\" 
 
 # Loads counter for the total number of models to stop selection
@@ -167,36 +105,38 @@ filepath_back = [f"model_pretrained_{filepath_dataset}_{filepath_model}_history_
 # Function definitions
 ###-----------------------------------------------------------###
 
-# Crude function for plotting the average gradient size for any layer
-# across all the epochs. Produces a graph of gradient size vs epoch.
-# Can split the graph into a nonfine tuning and fine tuning section.
-# Only selects layers by size, so distinct layers with the same shape
-# will be merged onto one plot, producing multiple lines. This can be
-# controlled by setting 'control' to 1 which allows the user to select
-# which specific layer they wish to view.
-# Will need to combine with possible_layers to select unique layer 
-# numbers (or rework!)
+def weight_matrix_norm_arbitrary_layer(num,nonfine,fine,partition=1,control=0,save=False):
+    """Create graph of a specified layer's weight gradients against epochs.
 
-def weight_matrix_norm_arbitrary_layer(num,partition,nonfine=20,fine=10,control=0):
+    num -- integer specifying layer. Call 'possible_layers' function for list of unique values.
+    nonfine -- number of classification tuning epochs (during training)
+    fine -- number of network tuning epochs (during training)
+    partition -- Set's where red line should be for classification graph (see project)
+    Should be replacable as this can be calculated from nonfine and fine.
+    control -- crutch to select specific layer as the function searches for layers of
+    the same size so it will merge multiple layers together. Set to 1 to select a
+    specific line if the graph has multiple.
+    save -- Set to True to save a png file.
     
+    """
     layer_weights = []
-    data = np.load(filepath_front+filepath_back[-1],allow_pickle=True)
+    data = np.load(filepath_front+filepath_back[-1],allow_pickle=True) # load weights
     
-    data = [i for i in data if len(i.shape)>1]
+    data = [i for i in data if len(i.shape)>1] # exclude biases
     
-    for layers in data:
+    for layers in data: # searches for layers of the same shape
         if layers.shape == data[num].shape:
             layer_weights.append(layers)
     
     count = 0
     limit = int((len(data)-nonfine)/(fine))
     
-    for i in data[nonfine-1:nonfine-1+limit]:
+    for i in data[nonfine-1:nonfine-1+limit]: # detects different layers of same shape
         if i.shape==data[num].shape:
             count+=1
     
     counter = count
-    if control == 1:        
+    if control == 1: # can be used to pick specific same shape layer        
         if count>1:
             print(count)
             skip = int(input("which layer? "))   
@@ -205,32 +145,43 @@ def weight_matrix_norm_arbitrary_layer(num,partition,nonfine=20,fine=10,control=
         count = range(count)
             
     for skip in count:
-        thingy = layer_weights[skip::counter]
-        thingy = np.diff(thingy,axis=0)
+        layerWeights = layer_weights[skip::counter]
+        layerWeights = np.diff(layerWeights,axis=0)
         if len(data[num].shape) == 2:
-            thingy[0:nonfine-1] = thingy[0:nonfine-1]/0.001
-            thingy[nonfine-1:] = thingy[nonfine-1:]/0.00001
+            layerWeights[0:nonfine-1] = layerWeights[0:nonfine-1]/0.001 # !! '0.001' corrosponds to Training.py learning rate. Need to change if different rate is used
+            layerWeights[nonfine-1:] = layerWeights[nonfine-1:]/0.00001 # !! as above for fine/network tuning.
         else:
-            thingy = thingy/0.00001
-        thingy = [np.linalg.norm(i) for i in thingy]
-        thingy = thingy/(np.prod(data[num].shape))**(1/2) 
+            layerWeights = layerWeights/0.00001 # !! as above for fine/network tuning
+        layerWeights = [np.linalg.norm(i) for i in layerWeights]
+        layerWeights = layerWeights/(np.prod(data[num].shape))**(1/2) 
+
+        # Graph plotting
         
-        #thingy = [(np.linalg.norm(i/max(np.max(i),-np.min(i))))/np.prod(i.shape) for i in thingy]
-        #thingy = abs(np.diff(thingy))
-        
-        if partition != 1:
+        if partition != 1 or True:
             plt.figure(4)
-            plt.plot(thingy[:partition-1])#-thingy[-1]])
+            plt.plot(layerWeights[:partition-1])
             plt.xlabel("Epoch")
-            plt.ylabel("Norm of W_epoch+1 - W_epoch")
-            plt.title("Before fine tuning")
+            plt.ylabel("Average gradient")
+            plt.title("Before fine tuning for classification layer")
         
-        #x = [i for i in range(20)]
-        plt.figure(5)
-        plt.plot(thingy[partition-1:])#[:10])#-thingy[-1]])
+        if num == 0:
+            plt.figure()
+            plt.plot(layerWeights)
+            plt.xlabel("Epoch")
+            plt.ylabel("Average gradient")
+            plt.title("Before/After combined for classification layer")
+            plt.axvline(x=partition-1, ls = "--", color="red", label="Fine-tuning starts")
+            plt.legend()
+            
+            if save==True: # saves image
+                plt.savefig(f"{filepath_model}_0_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+            plt.figure()
+        
+        plt.figure()
+        plt.plot(layerWeights[partition-1:])
         plt.xlabel("Epoch")
         plt.ylabel("Norm of W_epoch+1 - W_epoch")
-        plt.title("After fine tuning")
+        plt.title(f"Gradient vs Epoch for layer {num-nonfine+1}")
     
     
 # In contrast to above, graphs all layers' average gradients for
@@ -238,6 +189,15 @@ def weight_matrix_norm_arbitrary_layer(num,partition,nonfine=20,fine=10,control=
 # all epochs by setting 'gifs' to True
         
 def one_epoch_all_layers(num,nonfine=20,fine=10,gifs=False):
+    """Graphs all layers average gradients for a specified epoch.
+    Gif can be made for all epochs.
+
+    num -- integer specifying epoch
+    nonfine -- number of classification tuning epochs (during training)
+    fine -- number of network tuning epochs (during training)
+    gifs -- Set to True to save a png for gif building (see 'gif_builder')
+
+    """
     data = np.load(filepath_front+filepath_back[-1],allow_pickle=True)
     
     data = [i for i in data if len(i.shape)>1]
@@ -248,14 +208,8 @@ def one_epoch_all_layers(num,nonfine=20,fine=10,gifs=False):
     data_2 = data[nonfine+limit:nonfine+2*limit]
     
     data_m = [i - j for i,j in zip(data_1,data_2)]
-##   Attempts to add animation for nonfine only
-#    data_3 = data[0:nonfine]
-#    data_3.append(data_1[-1])
-#    data_3 = np.diff(data_3,axis=0)
+
     data_m = [np.linalg.norm(i)/(np.prod(i.shape))**(1/2) for i in data_m]
-#    data_3 = [np.linalg.norm(i)/(np.prod(i.shape))**(1/2) for i in data_3]
-#    data_m.append(data_3[num])
-#    data_final = data_m
     
     maxdata = np.max(data_m)
     
@@ -266,29 +220,39 @@ def one_epoch_all_layers(num,nonfine=20,fine=10,gifs=False):
         data_final = [i - j for i,j in zip(data_1,data_2)]
         data_final = [np.linalg.norm(i)/(np.prod(i.shape))**(1/2) for i in data_final]
         
-    plt.plot(data_final) 
+    #plt.figure()    
+    p = plt.plot(data_final) 
     plt.xlabel("Layer (0 = nearest to input)")
-    plt.ylabel("Norm of W_epoch+1 - W_epoch")
+    plt.ylabel("Average gradient")
     plt.title("Gradient vs layer")
     
     if gifs == True:
         plt.ylim(0,maxdata*1.1)
         plt.savefig(f'gifs//gif_{filepath_dataset}_{filepath_model}_all_{num}')
         plt.close()
+    return p
         
         
 # Can make gifs out of the images produced by one_epoch_all_layers
 # Requires that function to be run first to produce the images.
         
 def gif_builder(length):
-    
+    """Makes gifs from 'one_epoch_all_layers' function. Requires that function to run
+    first to produce images.
+
+    length -- number of images in gif.
+
+    Suggested usage would be to set up a loop to generate images and then call this
+    function. This also eliminates the need to calculate length manually.
+
+    """
     filenames = []
-    for j in range(5):
+    for j in range(5): # '5' delays the start of the gif by repeating the first image.
         filenames.append(f'gifs//gif_{filepath_dataset}_{filepath_model}_all_0.png')
     for i in range(1,length):
         for j in range(1):
             filenames.append(f'gifs//gif_{filepath_dataset}_{filepath_model}_all_{i}.png')
-    for j in range(10):
+    for j in range(10): # '10' delays end of the gif.
         filenames.append(f'gifs//gif_{filepath_dataset}_{filepath_model}_all_{length}.png')
         
     with imageio.get_writer(f'gifs//gif_{filepath_dataset}_{filepath_model}_all.gif', mode='I') as writer:
@@ -305,6 +269,19 @@ def gif_builder(length):
 # scatterplot function to graph a scatter plot.
             
 def scatter_comp(num,nonfine=20,fine=10):
+    """Plots scatter graph of one dataset's layer's weight gradients against anothers.
+
+    num -- integer specifying epoch
+    nonfine -- number of classification tuning layers (during training)
+    fine -- number of network tuning layers (during training)
+
+    Standard use: run script for first dataset. Run this function, saving to variable (i.e. a = scatter_comp)
+    Run script for second dataset. Run this function, saving to variable (i.e. b = scatter_comp)
+    Then plot a scatter graph between 'a' and 'b' manually.
+
+    In-progress: improvement to automate the above.
+
+    """
     data = np.load(filepath_front+filepath_back[-1],allow_pickle=True)
     
     data = [i for i in data if len(i.shape)>1]
@@ -324,6 +301,17 @@ def scatter_comp(num,nonfine=20,fine=10):
 # 2D filters one after another.
     
 def last_minus_first(num,nonfine=20,fine=10):
+    """Heatmap for last epoch's - first epoch's gradients for a specified layer.
+
+    num -- integer specifying layer
+    nonfine -- number of classification tuning epochs (during training)
+    fine --  number of network tuning epochs (during training)
+
+    In-progress: Need to work out how it organises the 2D picture from the 4D
+    matrix. I think it stacks 2D filters one after another, so the graph should
+    be blocks of nxn filters (usually n=3). But it does not look that way. Space
+    is also added to make the graph square/rectangular.
+    """
     data = np.load(filepath_front+filepath_back[-1],allow_pickle=True)
     
     data = [i for i in data if len(i.shape)>1]
@@ -354,23 +342,30 @@ def last_minus_first(num,nonfine=20,fine=10):
     
     plot = plt.matshow(data)
     plt.colorbar(plot)
-    #plt.xlabel("Layer (0 = nearest to input)")
-    #plt.ylabel("Norm of W_epoch+1 - W_epoch")
-    plt.title(f"(Last - first) gradient heatmap for layer {num}",y=1.1)
+    if num == 0:
+        plt.title(f"Last - first gradient heatmap for last layer",y=1.1)
+    else:
+        plt.title(f"Last - first gradient heatmap for layer {num}",y=1.1)
     print(s)
-    
-    
-# Ignore
-    
-def weight_matrix_whole_network(num,partition):
-    pass
-    
     
 # Lists possible unique layers. i.e. those with distinct shapes.
 # Only needed and useful for the crude functions that identify layers
 # by their shape rather than more unique information.
     
-def possible_layers(data):
+def possible_layers(data=0):
+    """Lists possible unique layers (up to shape).
+
+    Data -- data containing weights.
+    
+    Will give a list of integers for use with 'weight_matrix_norm_arbitrary_layer' function.
+    Another crutch due to only detecting layer shapes.
+    """
+    
+    ## !! NOT TESTED below
+    if data == 0:
+        data = np.load(filepath_front+filepath_back[-1],allow_pickle=True)
+    ## !! NOT TESTD above
+    
     listy_1 = []
     listy_2 = []
     for i in range(len(data)):
@@ -382,7 +377,18 @@ def possible_layers(data):
     
 # Calculates Top-1 accuracy for the given data
     
-def accuracy(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
+def accuracy(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0,save=False):
+    """Calculates Top-1 accuracy for the given data
+
+    images -- number of images. default 50,000 (for use with CIFAR-10)
+    classes -- number of classes.
+    val --
+    shape --
+    cutoff --
+    fine_tune --
+    save --
+    """
+    
     if fine_tune == 0:
         a = np.loadtxt(filepath_front+filepath_back[2])
     b = np.loadtxt(filepath_front+filepath_back[3])
@@ -405,6 +411,9 @@ def accuracy(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     plt.axvline(x=cutoff,color='green',linestyle='--')
     plt.text(x=cutoff+1,y=listy[cutoff],s="fine tuning")
     
+    if save==True:
+        plt.savefig(f"{filepath_model}_accuracy_1_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+    
     new_listy=[]
     for i in range(len(listy)-1):
         new_listy.append(listy[i+1]-listy[i])
@@ -413,6 +422,9 @@ def accuracy(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     plt.xlabel('Epoch')
     plt.ylabel('Change in accuracy')
     plt.axvline(x=cutoff,color='green',linestyle='--')
+    
+    if save==True:
+        plt.savefig(f"{filepath_model}_accuracy_2_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
     
     new_listy_1 = new_listy[:cutoff]
     new_listy_2 = new_listy[cutoff:]
@@ -440,13 +452,18 @@ def accuracy(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     plt.ylabel('Efficiency')
     plt.axvline(x=cutoff,color='green',linestyle='--')
     
+    if save==True:
+        plt.savefig(f"{filepath_model}_accuracy_3_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+    
     plt.tight_layout()
     plt.show()
     
     
 # Same as accuracy but calculates f1-score instead
     
-def f1_score(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
+def f1_score(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0,save=False):
+    """Same as 'accuracy' function but for f1-score. See 'accuracy' for information."""
+    
     if fine_tune == 0:
         a = np.loadtxt(filepath_front+filepath_back[2])
     b = np.loadtxt(filepath_front+filepath_back[3])
@@ -480,6 +497,9 @@ def f1_score(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     plt.axvline(x=cutoff,color='green',linestyle='--')
     plt.text(x=cutoff+1,y=listy[cutoff],s="fine tuning")
     
+    if save==True:
+        plt.savefig(f"{filepath_model}_f1score_1_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+    
     new_listy=[]
     for i in range(len(listy)-1):
         new_listy.append(listy[i+1]-listy[i])
@@ -488,6 +508,9 @@ def f1_score(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     plt.xlabel('Epoch')
     plt.ylabel('Change in F-score')
     plt.axvline(x=cutoff,color='green',linestyle='--')
+    
+    if save==True:
+        plt.savefig(f"{filepath_model}_f1score_2_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
     
     new_listy_1 = new_listy[:cutoff]
     new_listy_2 = new_listy[cutoff:]
@@ -515,6 +538,9 @@ def f1_score(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     plt.ylabel('Efficiency')
     plt.axvline(x=cutoff,color='green',linestyle='--')
     
+    if save==True:
+        plt.savefig(f"{filepath_model}_f1score_3_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+    
     plt.tight_layout()
     plt.show()
 
@@ -522,16 +548,77 @@ def f1_score(images=50000,classes=10,val=0.1,shape=30,cutoff=20,fine_tune=0):
     
 
 ### Extra section for short commands ###
-# Can be deleted 
-#accuracy(shape=15,cutoff=0,fine_tune=1)
-data = np.load(filepath_front+filepath_back[-1],allow_pickle=True)
-data = [i for i in data if len(i.shape)>1]
 
-# =============================================================================
-# a = input("hi: ")
-# b = input("hi: ")
-# c = input ("hi: ")
+data = np.load(filepath_front+filepath_back[-1],allow_pickle=True) # loads data
+data = [i for i in data if len(i.shape)>1] # removes biases
+
+# ============================================================================= Example gif building code
+# a = input("")
+# b = input("")
+# c = input("")
 # for i in range(a):
 #     one_epoch_all_layers(a,nonfine=b,fine=c,gifs=True)
 # gif_builder(a-1)
 # =============================================================================
+
+## Example use of the script for generating images. Improvable by making this into a module
+## and creating another script to access this one.
+## Can delete below.
+ 
+#images = 50000
+#nonfine = 20
+#K = [0,1,2,3]
+#partition = 1
+#p = list(possible_layers(data).values())
+#if filepath_dataset == "ImageNet_to_MNIST":
+#    nonfine = 20#1
+#    fine = 20#5
+#    images = 60000
+#    L = [0,8]#[0,3]
+#    partition = 20#1
+#elif filepath_model == "mobilenet_v2":
+#    fine = 20
+#    L = [0,18]
+#    partition = 20
+#else:
+#    fine = 10
+#    L = [0,8]
+#    partition = 20
+
+#weight_matrix_norm_arbitrary_layer(p[0],partition,nonfine,fine,control=0,save=True)
+#plt.savefig(f"{filepath_model}_0_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+#for num in p[1::20]:    
+#    weight_matrix_norm_arbitrary_layer(num,partition=1,nonfine=nonfine,fine=fine,control=0)
+#    plt.figure()
+#for num in p[1::5]:
+#    weight_matrix_norm_arbitrary_layer(num,partition=1,nonfine=nonfine,fine=fine,control=0)
+#    plt.savefig(f"{filepath_model}_{num}_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+#plt.figure()
+#temp=[]
+#for num in L:    
+#    line_num = one_epoch_all_layers(num,nonfine,fine,gifs=False)
+#    temp.append(line_num[0])
+#plt.legend(temp,['First epoch','Last epoch'])
+#plt.savefig(f"{filepath_model}_firstLast_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+#for num in K:
+#    last_minus_first(num,nonfine,fine)
+#    plt.savefig(f"{filepath_model}_heatmap_{num}_{filepath_dataset}.png",dpi=300,bbox_inches='tight')
+#accuracy(images,classes=10,val=0.1,shape=nonfine+fine,cutoff=nonfine,fine_tune=0,save=True)
+#f1_score(images,classes=10,val=0.1,shape=nonfine+fine,cutoff=nonfine,fine_tune=0,save=True)
+
+#d1 = d1/np.max(d1)
+#d2 = d2/np.max(d2)
+#plt.scatter(d1,d2)
+#plt.gca().set_aspect('equal', adjustable='box')
+#plt.plot([0,1],[0,1],ls='--')
+
+#axes = plt.gca()
+#axes.set_xlim([0,np.max(d1)])
+#axes.set_ylim([0,np.max(d2)])
+#plt.scatter(d1,d2)
+#plt.ticklabel_format(axis="x",style="sci",scilimits=(0,0))
+#plt.ticklabel_format(axis="y",style="sci",scilimits=(0,0))
+#plt.plot([0,1],[0,1],ls='--')
+#plt.ylabel("MNIST")
+#plt.xlabel("CIFAR-10")
+#plt.savefig(f"{filepath_model}_scatter_{filepath_dataset}.png",dpi=300)

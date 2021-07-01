@@ -54,36 +54,9 @@ name = which_model[1]                                       # File name
 ### Section for loading and modifying model ###
 ###-----------------------------------------------------------###
 
-# Batchnorm fix to freeze them (i.e. stop updating weights)
-# May not be needed now that this script does not train the
-# network
+# Loads pretrained model without classification layer
 
-class FrozenBatchNormalization(layers.BatchNormalization):
-    def call(self, inputs, training=None):
-        return super().call(inputs=inputs, training=False)
-
-BatchNormalization = layers.BatchNormalization
-layers.BatchNormalization = FrozenBatchNormalization
-
-# Loads pretrained model without classification layer (the last one)
-# Try except clause accounts for densenet models not accepting the
-# layers argument and is not strictly necessary now that this script 
-# does not involve training the network.
-
-try:
-    model_pretrained_base = my_pretrained_model(include_top = False, weights = None, input_shape=(32,32,3), layers=layers)
-except Exception:
-    model_pretrained_base = my_pretrained_model(include_top = False, weights = None, input_shape=(32,32,3))
-    
-# Restore batchnorm layer definition. Probably not needed
-    
-layers.BatchNormalization = BatchNormalization 
-
-# Stops the pretrained model from adjusting its weights.
-# Not needed, keras does not save this!
-
-for layer in model_pretrained_base.layers:
-    layer.trainable = False
+model_pretrained_base = my_pretrained_model(include_top = False, weights = None, input_shape=(32,32,3), layers=layers) 
 
 # Adds on a new classification layer with 10 classes (cifar10's categories)
     
@@ -105,6 +78,7 @@ model_pretrained = Model(model_pretrained_base.input,x)
 model_pretrained.compile(optimizer="adam", loss="categorical_crossentropy", metrics=['accuracy'])
 
 # Sets the directory to look for models
+
 ### IMPORTANT !!! THE FOLLOWING LINE WILL NEED TO BE CHANGED FOR USE BY OTHERS. ###
 filepath_front = r"C:\Users\Cameron\MMath Project\Models\ImageNet_to_MNIST\backups"
 ### IMPORTANT !!! ------------------------------------------------------------- ###

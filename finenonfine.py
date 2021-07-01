@@ -10,6 +10,10 @@ from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
+# Currently there is no code for generating the 3D surface plots
+# automatically so I just ran the network manually and wrote down the
+# accuracy for each stage.
+# This would be the longest section to write code for.
 
 resnet50_time = {'avg_time' : [8,27.6,110], 
             'time' : [
@@ -82,14 +86,42 @@ mobilenetv2 = {
                 [0.2123,0.2493,0.4666,0.5518,0.5938,0.6204,0.6372],
                 [0.2076,0.2495,0.2605,0.4833,0.5553,0.5952,0.6165,0.6384],
                 [0.2160,0.2491,0.2606,0.2653,0.4846,0.5512,0.5841,0.6087,0.6280],
-                [0.2120,0.2501,0.2613,0.2673,0.2702,0.4816,0.5445,0.5825,0.6065,0.6267]]
+                [0.2120,0.2501,0.2613,0.2673,0.2702,0.4816,0.5445,0.5825,0.6065,0.6267]],
+                'name' : 'mobilenetv2'
                 }
 
-def surface(data):
+resnet50 = {
+            'time' : [
+            [0.2772,0.5561,0.6491,0.7012,0.7353],
+            [0.4574,0.6118,0.6911,0.7409,0.7772,0.8092],
+            [0.4545,0.5984,0.6558,0.7253,0.7689,0.8022,0.8332],
+            [0.4533,0.5963,0.6356,0.6836,0.7454,0.7867,0.8214,0.8509],
+            [0.4550,0.5970,0.6349,0.6627,0.7029,0.7613,0.7993,0.8350,0.8638],
+            [0.4544,0.5943,0.6351,0.6619,0.6797,0.7162,0.7725,0.8112,0.8441,0.8737]],
+            'val_time' : [
+            [0.4641,0.6026,0.6598,0.6920,0.7131],
+            [0.5563,0.6368,0.6792,0.7009,0.7199,0.7283],
+            [0.5549,0.5924,0.6606,0.6926,0.7081,0.7241,0.7334],
+            [0.5591,0.5924,0.6179,0.6706,0.6978,0.7140,0.7242,0.7287],
+            [0.5599,0.5932,0.6188,0.6308,0.6833,0.6992,0.7156,0.7250,0.7295],
+            [0.5601,0.5983,0.6165,0.6289,0.6372,0.6875,0.7025,0.7153,0.7244,0.7327]],
+            'name' : 'resnet50'
+            }
+
+def surface(data,val=True, save=False):
+    """Creates surface plot from data.
+
+    data -- data for surface plot
+    val -- Set False to not use validation values (i.e. use actual accuracy from data)
+    save -- Set True to save png
+    """
     x = 6*[0,1,2,3,4,5]
     x.sort()
     y = 6*[0,1,2,3,4,5]
-    z = data['val_time']
+    if val == True:
+        z = data['val_time']
+    else:
+        z = data['time']
     z = [i[-6:] for i in z]
     z[0].insert(0,0.1000)
     z = [item for sublist in z for item in sublist]
@@ -99,13 +131,18 @@ def surface(data):
     ax.set_xlabel("Nonfine")
     ax.set_ylabel("Fine")
     ax.set_zlabel("Accuracy")
-    plt.title("Mobilenetv2")
+    plt.title(data['name'])
     ax.plot_trisurf(x,y,z,cmap=cm.coolwarm)
     
+    if save == True:
+        plt.savefig(f"{filepath_model}_surface_{filepath_dataset}.png",dpi=300)
     
+# ignore
+
 def fine(x,a,total_time):
     return (total_time - a*x[0])/x[1]
 
+# ignore
 
 def plott(x):
     x = x['val_time']
@@ -114,6 +151,11 @@ def plott(x):
     
     
 def deer(x):
+    """In-progress! Plots confusion matrix.
+
+    x -- data
+    
+    """
     fig, ax = plt.subplots()
     ax.matshow(x)
 ##    for (i, j), z in np.ndenumerate(x):
@@ -121,10 +163,13 @@ def deer(x):
 #    #plt.tight_layout()
     plt.show()
    
-    
+# ignore
+
 def locate(x,a):
     value = np.partition((x - 50000*np.eye(10,10)).flatten(),-a)[-a]
     return np.where(x == value)
+
+#ignore
 
 def adder(s):
     x = np.loadtxt(s)
@@ -139,6 +184,8 @@ def adder(s):
         total -= x[j,j]    
         listy.append(total)
     return listy
+
+#ignore
 
 def horse(x,y):
     x = x[10:]
